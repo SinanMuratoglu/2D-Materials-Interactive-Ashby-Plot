@@ -367,7 +367,7 @@
     const C = D.columns, xs = C[state.x], ys = C[state.y];
     const top = $("fTop").checked, bot = $("fBot").checked, metal = $("fMetal").checked;
     const exf = $("fExf").checked, hull = $("fHull").checked;
-    const rows = []; let dropMissing = 0, dropLog = 0;
+    const rows = []; let dropMissing = 0, dropLog = 0, dropZero = 0;
     for (let i = 0; i < N; i++) {
       const p = C.discovery_process[i];
       if (p === "top-down" && !top) continue;
@@ -376,11 +376,11 @@
       if (exf && C.exfoliation_energy_meV_A2[i] != null && C.exfoliation_energy_meV_A2[i] < 0) continue;
       if (hull && !(C.decomposition_energy_per_atom_eV[i] != null && C.decomposition_energy_per_atom_eV[i] < 0.2)) continue;
       const x = xs[i], y = ys[i];
-      if (x == null || y == null) { dropMissing++; continue; }
+      if (x === 0 || y === 0) { dropZero++; continue; } }
       if ((state.xlog && x <= 0) || (state.ylog && y <= 0)) { dropLog++; continue; }
       rows.push(i);
     }
-    return { rows, dropMissing, dropLog };
+    return { rows, dropMissing, dropLog, dropZero };
   }
 
   // ------------------------------------------------------------------ envelopes
@@ -437,7 +437,7 @@
     if (!D) return;
     syncButtons();
     const C = D.columns;
-    const { rows, dropMissing, dropLog } = visibleRows();
+    const { rows, dropMissing, dropLog, dropZero } = visibleRows();
 
     const counts = {};
     for (const i of rows) counts[C.group[i]] = (counts[C.group[i]] || 0) + 1;
@@ -557,6 +557,7 @@
 
     const shown = rows.filter(i => !state.hidden.has(C.group[i])).length;
     const notes = [];
+    if (dropZero) notes.push(`${dropZero.toLocaleString()} with a value of 0 hidden`);
     if (dropLog) notes.push(`${dropLog.toLocaleString()} ≤ 0 hidden by log scale`);
     if (dropMissing) notes.push(`${dropMissing.toLocaleString()} missing a value`);
     $("status").textContent = `Showing ${shown.toLocaleString()} of ${N.toLocaleString()} materials` + (notes.length ? ` · ${notes.join(" · ")}` : "");
