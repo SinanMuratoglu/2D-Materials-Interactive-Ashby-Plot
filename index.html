@@ -376,7 +376,8 @@
       if (exf && C.exfoliation_energy_meV_A2[i] != null && C.exfoliation_energy_meV_A2[i] < 0) continue;
       if (hull && !(C.decomposition_energy_per_atom_eV[i] != null && C.decomposition_energy_per_atom_eV[i] < 0.2)) continue;
       const x = xs[i], y = ys[i];
-      if (x === 0 || y === 0) { dropZero++; continue; } }
+      if (x == null || y == null) { dropMissing++; continue; }       
+      if (x === 0 || y === 0) { dropZero++; continue; }
       if ((state.xlog && x <= 0) || (state.ylog && y <= 0)) { dropLog++; continue; }
       rows.push(i);
     }
