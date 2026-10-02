@@ -76,7 +76,7 @@
     min-width: 0;
     padding: 14px 18px 10px;
   }
-  h1 { font-size: 17px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  h1 { font-size: 17px; margin: 0 0 18px; letter-spacing: -0.01em; }
   .sub { color: var(--text-secondary); font-size: 12.5px; margin: 0 0 18px; }
   .sub a { color: inherit; }
   fieldset { border: 0; padding: 0; margin: 0 0 18px; }
@@ -122,6 +122,42 @@
   .legend .sw { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; }
   .legend .n { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .hint { color: var(--text-muted); font-size: 12px; margin: 6px 0 0; }
+  .hint:empty { display: none; }
+  .cut { margin-bottom: 14px; }
+  .cut-head { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text-secondary); margin-bottom: 2px; }
+  .cut-head b { color: var(--text-primary); font-weight: 600; }
+  .cut-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dual { position: relative; height: 24px; }
+  .dual .track { position: absolute; left: 7px; right: 7px; top: 10px; height: 4px; border-radius: 2px; background: var(--border); }
+  .dual .fill { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: var(--accent); }
+  .dual input {
+    position: absolute; left: 0; top: 0; width: 100%; height: 24px; margin: 0;
+    background: none; pointer-events: none; -webkit-appearance: none; appearance: none;
+  }
+  .dual input::-webkit-slider-runnable-track { background: none; border: 0; }
+  .dual input::-moz-range-track { background: none; border: 0; }
+  .dual input::-webkit-slider-thumb {
+    pointer-events: auto; -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent); cursor: pointer;
+  }
+  .dual input::-moz-range-thumb {
+    pointer-events: auto; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent); cursor: pointer;
+  }
+  .dual input:focus-visible { outline: none; }
+  .dual input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
+  .cut-vals { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+  .cut-vals input {
+    width: 0; flex: 1; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums;
+    color: var(--text-primary); background: var(--surface-0); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px;
+  }
+  .cut-vals input.hi { text-align: right; }
+  .legtip {
+    position: fixed; z-index: 20; pointer-events: none; max-width: 220px;
+    background: var(--text-primary); color: var(--surface-1); font-size: 12px; line-height: 1.35;
+    padding: 6px 9px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  }
+  .legtip[hidden] { display: none; }
   .btnrow { display: flex; gap: 8px; margin-top: 8px; }
   .btn {
     font: inherit; font-size: 12.5px; padding: 5px 10px; cursor: pointer;
@@ -170,7 +206,6 @@
 <div class="app">
   <aside>
     <h1>2D Materials Ashby Explorer</h1>
-    <p class="sub">~6,350 2D-materials from <a href="http://www.2dmatpedia.org/" target="_blank" rel="noopener">2DMatPedia</a></p>
 
     <fieldset>
       <legend class="h">Axes</legend>
@@ -201,20 +236,18 @@
         <input type="range" id="cover" min="50" max="95" step="5" value="75" aria-label="Share of each family's points enclosed">
         <output id="coverOut">75%</output>
       </div>
-      <p class="hint">Envelope wraps the densest part of a family</p>
     </fieldset>
 
     <fieldset>
       <legend class="h">Families</legend>
       <ul class="legend" id="legend"></ul>
-      <p class="hint">Click to toggle · double-click to isolate · hover to highlight</p>
       <div class="btnrow"><button type="button" class="btn" id="allon">Show all</button></div>
     </fieldset>
 
     <fieldset>
       <legend class="h">Find</legend>
       <input type="search" id="search" placeholder="Formula, e.g. MoS2, WSe2" autocomplete="off" spellcheck="false" aria-label="Find formula">
-      <p class="hint" id="searchHint">Matches are ringed and labelled with their space group.</p>
+      <p class="hint" id="searchHint"></p>
     </fieldset>
 
     <fieldset>
@@ -227,14 +260,27 @@
     </fieldset>
 
     <fieldset>
-      <legend class="h">Outliers</legend>
-      <label class="check"><input type="checkbox" id="fOut"> Hide outliers from the main cluster</label>
-      <div class="slider">
-        <span>Strictness</span>
-        <input type="range" id="outK" min="2" max="8" step="0.5" value="3.5" aria-label="Outlier cutoff (robust z-score)">
-        <output id="outKOut">3.5</output>
+      <legend class="h">Axis cutoffs</legend>
+      <div class="cut">
+        <div class="cut-head"><b>X</b><span id="cutXName"></span></div>
+        <div class="dual"><div class="track"><div class="fill" id="xFill"></div></div>
+          <input type="range" id="xLo" min="0" max="1000" step="1" value="0" aria-label="X axis lower cutoff">
+          <input type="range" id="xHi" min="0" max="1000" step="1" value="1000" aria-label="X axis upper cutoff">
+        </div>
+        <div class="cut-vals"><input type="text" id="xLoV" inputmode="decimal" aria-label="X lower cutoff value"><span>to</span><input type="text" class="hi" id="xHiV" inputmode="decimal" aria-label="X upper cutoff value"></div>
       </div>
-      <p class="hint">Hides points more than this many robust standard deviations (median ± MAD) from the middle of either axis. Lower = stricter.</p>
+      <div class="cut">
+        <div class="cut-head"><b>Y</b><span id="cutYName"></span></div>
+        <div class="dual"><div class="track"><div class="fill" id="yFill"></div></div>
+          <input type="range" id="yLo" min="0" max="1000" step="1" value="0" aria-label="Y axis lower cutoff">
+          <input type="range" id="yHi" min="0" max="1000" step="1" value="1000" aria-label="Y axis upper cutoff">
+        </div>
+        <div class="cut-vals"><input type="text" id="yLoV" inputmode="decimal" aria-label="Y lower cutoff value"><span>to</span><input type="text" class="hi" id="yHiV" inputmode="decimal" aria-label="Y upper cutoff value"></div>
+      </div>
+      <div class="btnrow">
+        <button type="button" class="btn" id="cutAuto" title="Set both cutoffs to median ± 3.5 robust standard deviations">Auto-trim outliers</button>
+        <button type="button" class="btn" id="cutReset">Reset</button>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -261,6 +307,7 @@
   </main>
 </div>
 
+<div class="legtip" id="legtip" role="tooltip" hidden></div>
 <script>
 (() => {
   // ------------------------------------------------------------------ config
@@ -311,6 +358,8 @@
     highlight: null,
     search: params.get("q") || "",
   };
+  const parseCut = v => { if (!v) return [null, null]; const [a, b] = v.split(",").map(t => t === "" ? null : +t); return [Number.isFinite(a) ? a : null, Number.isFinite(b) ? b : null]; };
+  state.cut = { x: parseCut(params.get("xc")), y: parseCut(params.get("yc")) };
   state.xlog = params.has("xlog") ? params.get("xlog") === "1" : AX[state.x].log;
   state.ylog = params.has("ylog") ? params.get("ylog") === "1" : AX[state.y].log;
 
@@ -342,22 +391,94 @@
     $("cover").disabled = state.blob === "off";
   }
 
-  $("xsel").onchange = e => { state.x = e.target.value; state.xlog = AX[state.x].log; render(true); };
-  $("ysel").onchange = e => { state.y = e.target.value; state.ylog = AX[state.y].log; render(true); };
+  $("xsel").onchange = e => { state.cut.x = [null, null]; state.x = e.target.value; state.xlog = AX[state.x].log; render(true); };
+  $("ysel").onchange = e => { state.cut.y = [null, null]; state.y = e.target.value; state.ylog = AX[state.y].log; render(true); };
   $("swap").onclick = () => {
     [state.x, state.y, state.xlog, state.ylog] = [state.y, state.x, state.ylog, state.xlog];
+    [state.cut.x, state.cut.y] = [state.cut.y, state.cut.x];
     $("xsel").value = state.x; $("ysel").value = state.y; render(true);
   };
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => {
-    state[b.dataset.axis + "log"] = b.dataset.scale === "log"; render(true);
+    const lg = b.dataset.scale === "log";
+    if (state[b.dataset.axis + "log"] !== lg) state.cut[b.dataset.axis] = [null, null];
+    state[b.dataset.axis + "log"] = lg; render(true);
   });
   document.querySelectorAll("#blobmode button").forEach(b => b.onclick = () => { state.blob = b.dataset.mode; render(false); });
   $("cover").oninput = e => { state.cover = +e.target.value; $("coverOut").textContent = state.cover + "%"; render(false); };
-  ["fTop", "fBot", "fMetal", "fExf", "fHull", "fOut"].forEach(id => $(id).onchange = () => render(true));
-  if (params.get("out") === "1") $("fOut").checked = true;
-  if (params.has("k")) { $("outK").value = params.get("k"); $("outKOut").textContent = params.get("k"); }
-  $("outK").disabled = !$("fOut").checked;
-  $("outK").oninput = e => { $("outKOut").textContent = e.target.value; if ($("fOut").checked) render(true); };
+  ["fTop", "fBot", "fMetal", "fExf", "fHull"].forEach(id => $(id).onchange = () => render(true));
+
+  // ---- axis cutoffs: sliders run 0..1000 across the data's range, evenly in log10 on a log axis
+  const SL = 1000;
+  const domain = { x: null, y: null };   // [lo, hi] of the data on each axis, in plot space (log10 if log)
+  const toT = (ax, v) => state[ax + "log"] ? Math.log10(v) : v;
+  const fromT = (ax, t) => state[ax + "log"] ? Math.pow(10, t) : t;
+  const posOf = (ax, v) => { const [a, b] = domain[ax]; return b > a ? Math.round((toT(ax, v) - a) / (b - a) * SL) : 0; };
+  const valOf = (ax, p) => { const [a, b] = domain[ax]; return fromT(ax, a + (b - a) * p / SL); };
+  const niceNum = v => { if (v == null || !Number.isFinite(v)) return ""; const a = Math.abs(v); return (a !== 0 && (a >= 1e4 || a < 1e-3)) ? v.toExponential(2) : (+v.toPrecision(3)).toString(); };
+  let cutFrame = 0;
+  const cutRender = () => { cancelAnimationFrame(cutFrame); cutFrame = requestAnimationFrame(() => render(true)); };
+  function syncCutUI() {
+    for (const ax of ["x", "y"]) {
+      $(`cut${ax.toUpperCase()}Name`).textContent = AX[state[ax]].label + (state[ax + "log"] ? " · log" : "");
+      const d = domain[ax], [lo, hi] = state.cut[ax];
+      const off = !d || !(d[1] > d[0]);
+      for (const id of ["Lo", "Hi", "LoV", "HiV"]) $(ax + id).disabled = off;
+      if (off) { $(ax + "LoV").value = ""; $(ax + "HiV").value = ""; continue; }
+      const pl = lo == null ? 0 : Math.max(0, Math.min(SL, posOf(ax, lo)));
+      const ph = hi == null ? SL : Math.max(0, Math.min(SL, posOf(ax, hi)));
+      if (document.activeElement !== $(ax + "Lo")) $(ax + "Lo").value = pl;
+      if (document.activeElement !== $(ax + "Hi")) $(ax + "Hi").value = ph;
+      $(ax + "Fill").style.left = (pl / SL * 100) + "%";
+      $(ax + "Fill").style.right = (100 - ph / SL * 100) + "%";
+      if (document.activeElement !== $(ax + "LoV")) $(ax + "LoV").value = niceNum(lo == null ? fromT(ax, d[0]) : lo);
+      if (document.activeElement !== $(ax + "HiV")) $(ax + "HiV").value = niceNum(hi == null ? fromT(ax, d[1]) : hi);
+    }
+  }
+  for (const ax of ["x", "y"]) {
+    const lo = $(ax + "Lo"), hi = $(ax + "Hi");
+    lo.oninput = () => {
+      if (+lo.value > +hi.value - 5) lo.value = +hi.value - 5;
+      state.cut[ax][0] = +lo.value <= 0 ? null : valOf(ax, +lo.value);
+      syncCutUI(); cutRender();
+    };
+    hi.oninput = () => {
+      if (+hi.value < +lo.value + 5) hi.value = +lo.value + 5;
+      state.cut[ax][1] = +hi.value >= SL ? null : valOf(ax, +hi.value);
+      syncCutUI(); cutRender();
+    };
+    // the thumb nearer the pointer gets the drag when both sit at the same end
+    lo.onpointerdown = () => { lo.style.zIndex = 2; hi.style.zIndex = 1; };
+    hi.onpointerdown = () => { hi.style.zIndex = 2; lo.style.zIndex = 1; };
+    const typed = (k, el) => {
+      const t = el.value.trim(), v = t === "" ? null : Number(t);
+      if (v != null && (!Number.isFinite(v) || (state[ax + "log"] && v <= 0))) { syncCutUI(); return; }
+      const d = domain[ax];
+      const atEnd = v == null || (k === 0 ? toT(ax, v) <= d[0] : toT(ax, v) >= d[1]);
+      state.cut[ax][k] = atEnd ? null : v;
+      const [a, b] = state.cut[ax];
+      if (a != null && b != null && a > b) state.cut[ax] = [b, a];
+      el.blur(); render(true);
+    };
+    $(ax + "LoV").onchange = e => typed(0, e.target);
+    $(ax + "HiV").onchange = e => typed(1, e.target);
+    for (const k of ["LoV", "HiV"]) $(ax + k).onkeydown = e => { if (e.key === "Enter") e.target.dispatchEvent(new Event("change")); };
+  }
+  $("cutReset").onclick = () => { state.cut = { x: [null, null], y: [null, null] }; render(true); };
+  // Auto-trim: cutoffs at median ± 3.5 robust SDs (modified z-score = 3.5), per axis, in plot space
+  $("cutAuto").onclick = () => {
+    const base = visibleRows(true).rows, C = D.columns;
+    for (const ax of ["x", "y"]) {
+      const t = base.map(i => toT(ax, C[state[ax]][i]));
+      if (t.length < 10) continue;
+      const [lo, hi] = robustBounds(t, 3.5), d = domain[ax];
+      state.cut[ax] = [lo > d[0] ? fromT(ax, lo) : null, hi < d[1] ? fromT(ax, hi) : null];
+    }
+    render(true);
+  };
+
+  // legend tip after a short hover
+  const tip = $("legtip"); let tipTimer = null;
+  const hideTip = () => { clearTimeout(tipTimer); tip.hidden = true; };
   let searchTimer;
   $("search").oninput = e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.search = e.target.value.trim(); render(false); }, 150); };
   $("allon").onclick = () => { state.hidden.clear(); render(false); };
@@ -386,14 +507,26 @@
         render(false);
       };
       li.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); li.onclick(); } };
-      li.onmouseenter = () => { if (!state.hidden.has(g.name)) { state.highlight = g.name; render(false, true); } };
-      li.onmouseleave = () => { state.highlight = null; render(false, true); };
+      li.onmouseenter = () => {
+        if (!state.hidden.has(g.name)) { state.highlight = g.name; render(false, true); }
+        clearTimeout(tipTimer);
+        tipTimer = setTimeout(() => {
+          const onlyThis = GROUPS.every(o => o.name === g.name ? !state.hidden.has(o.name) : state.hidden.has(o.name));
+          tip.textContent = onlyThis ? "Double-click to show all families again" : `Double-click to show only ${g.name}`;
+          const r = li.getBoundingClientRect();
+          tip.hidden = false;
+          tip.style.left = Math.min(r.right + 8, window.innerWidth - tip.offsetWidth - 8) + "px";
+          tip.style.top = (r.top + r.height / 2 - tip.offsetHeight / 2) + "px";
+        }, 1500);
+      };
+      li.onmouseleave = () => { hideTip(); state.highlight = null; render(false, true); };
+      li.addEventListener("mousedown", hideTip);
       ul.appendChild(li);
     });
   }
 
   // ------------------------------------------------------------------ data selection
-  function visibleRows() {
+  function visibleRows(baseOnly) {
     const C = D.columns, xs = C[state.x], ys = C[state.y];
     const top = $("fTop").checked, bot = $("fBot").checked, metal = $("fMetal").checked;
     const exf = $("fExf").checked, hull = $("fHull").checked;
@@ -407,21 +540,21 @@
       if (hull && !(C.decomposition_energy_per_atom_eV[i] != null && C.decomposition_energy_per_atom_eV[i] < 0.2)) continue;
       const x = xs[i], y = ys[i];
       if (x == null || y == null) { dropMissing++; continue; }       
-      if (x === 0 || y === 0) { dropZero++; continue; }
+      if (Math.abs(x) < 1e-9 || Math.abs(y) < 1e-9) { dropZero++; continue; }   // exact 0, or float noise like 2e-15
       if ((state.xlog && x <= 0) || (state.ylog && y <= 0)) { dropLog++; continue; }
       rows.push(i);
     }
-    let dropOut = 0, kept = rows;
-    $("outK").disabled = !$("fOut").checked;
-    if ($("fOut").checked && rows.length > 10) {
-      const k = +$("outK").value;
-      const tx = rows.map(i => state.xlog ? Math.log10(xs[i]) : xs[i]);
-      const ty = rows.map(i => state.ylog ? Math.log10(ys[i]) : ys[i]);
-      const zx = robustZ(tx), zy = robustZ(ty);
-      kept = rows.filter((_, n) => Math.abs(zx[n]) <= k && Math.abs(zy[n]) <= k);
-      dropOut = rows.length - kept.length;
+    if (baseOnly) return { rows };
+    // slider range = the data's full range on each axis (all families, before cutoffs)
+    for (const [ax, vs] of [["x", xs], ["y", ys]]) {
+      let a = Infinity, b = -Infinity;
+      for (const i of rows) { const t = state[ax + "log"] ? Math.log10(vs[i]) : vs[i]; if (t < a) a = t; if (t > b) b = t; }
+      domain[ax] = rows.length ? [a, b] : null;
     }
-    return { rows: kept, dropMissing, dropLog, dropZero, dropOut };
+    const [xl, xh] = state.cut.x, [yl, yh] = state.cut.y;
+    const kept = rows.filter(i => !((xl != null && xs[i] < xl) || (xh != null && xs[i] > xh) || (yl != null && ys[i] < yl) || (yh != null && ys[i] > yh)));
+    syncCutUI();
+    return { rows: kept, dropMissing, dropLog, dropZero, dropOut: rows.length - kept.length };
   }
 
   // Modified z-score (Iglewicz & Hoaglin): z = 0.6745·(v − median) / MAD.
@@ -431,14 +564,14 @@
     const n = sorted.length, m = n >> 1;
     return n % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
   }
-  function robustZ(vals) {
+  // returns the [lo, hi] values where the modified z-score equals ±k
+  function robustBounds(vals, k) {
     const med = median(vals.slice().sort((a, b) => a - b));
     const dev = vals.map(v => Math.abs(v - med));
     const mad = median(dev.slice().sort((a, b) => a - b));
-    if (mad > 0) return vals.map(v => 0.6745 * (v - med) / mad);
-    const meanAD = dev.reduce((a, b) => a + b, 0) / dev.length;
-    if (meanAD > 0) return vals.map(v => (v - med) / (1.2533 * meanAD));
-    return vals.map(() => 0);
+    let scale = mad > 0 ? mad / 0.6745 : 1.2533 * dev.reduce((a, b) => a + b, 0) / dev.length;
+    if (!(scale > 0)) return [-Infinity, Infinity];
+    return [med - k * scale, med + k * scale];
   }
 
   // ------------------------------------------------------------------ envelopes
@@ -581,7 +714,7 @@
       }
       $("searchHint").textContent = nMatch ? `${nMatch} match${nMatch > 1 ? "es" : ""} on this plot.` : "No matches on this plot (check filters, hidden families, or log axes).";
     } else {
-      $("searchHint").textContent = "Matches are ringed and labelled with their space group.";
+      $("searchHint").textContent = "";
     }
 
     const tp = css("--text-primary"), ts = css("--text-secondary"), grid = css("--grid"), border = css("--border");
@@ -615,7 +748,7 @@
 
     const shown = rows.filter(i => !state.hidden.has(C.group[i])).length;
     const notes = [];
-    if (dropOut) notes.push(`${dropOut.toLocaleString()} outliers hidden`);
+    if (dropOut) notes.push(`${dropOut.toLocaleString()} outside cutoffs`);
     if (dropZero) notes.push(`${dropZero.toLocaleString()} with a value of 0 hidden`);
     if (dropLog) notes.push(`${dropLog.toLocaleString()} ≤ 0 hidden by log scale`);
     if (dropMissing) notes.push(`${dropMissing.toLocaleString()} missing a value`);
@@ -625,7 +758,7 @@
     const h = new URLSearchParams({ x: state.x, y: state.y, xlog: +state.xlog, ylog: +state.ylog, blob: state.blob, cover: state.cover });
     if (state.hidden.size) h.set("hide", [...state.hidden].join("|"));
     if (state.search) h.set("q", state.search);
-    if ($("fOut").checked) { h.set("out", 1); h.set("k", $("outK").value); }
+    for (const ax of ["x", "y"]) { const [a, b] = state.cut[ax]; if (a != null || b != null) h.set(ax + "c", `${a ?? ""},${b ?? ""}`); }
     history.replaceState(null, "", "#" + h.toString());
     render.rows = rows;
   }
