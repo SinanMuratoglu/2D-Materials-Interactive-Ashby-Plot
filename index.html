@@ -142,6 +142,20 @@
   #plot { position: absolute; inset: 0; }
   .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-muted); }
   footer { color: var(--text-muted); font-size: 11.5px; padding-top: 8px; }
+  .card {
+    position: absolute; top: 12px; right: 12px; width: 290px; max-height: calc(100% - 24px); overflow-y: auto;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.12); padding: 14px 16px; z-index: 5; font-size: 13px;
+  }
+  .card[hidden] { display: none; }
+  .card h2 { font-size: 16px; margin: 0 22px 2px 0; }
+  .card .meta { color: var(--text-secondary); font-size: 12px; margin-bottom: 10px; }
+  .card .x { position: absolute; top: 8px; right: 10px; border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--text-muted); }
+  .card dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0 0 12px; }
+  .card dt { color: var(--text-secondary); }
+  .card dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .card .links a { display: block; color: var(--accent); margin-top: 4px; }
+  .card .links .note { color: var(--text-muted); font-size: 11.5px; }
   footer a { color: inherit; }
 
   @media (max-width: 860px) {
@@ -156,7 +170,7 @@
 <div class="app">
   <aside>
     <h1>2D Materials Ashby Explorer</h1>
-    <p class="sub">~6,350 2D-materials from <a href="http://www.2dmatpedia.org/" target="_blank" rel="noopener">2DMatPedia</a><p>
+    <p class="sub">~6,350 2D-materials from <a href="http://www.2dmatpedia.org/" target="_blank" rel="noopener">2DMatPedia</a></p>
 
     <fieldset>
       <legend class="h">Axes</legend>
@@ -213,6 +227,17 @@
     </fieldset>
 
     <fieldset>
+      <legend class="h">Outliers</legend>
+      <label class="check"><input type="checkbox" id="fOut"> Hide outliers from the main cluster</label>
+      <div class="slider">
+        <span>Strictness</span>
+        <input type="range" id="outK" min="2" max="8" step="0.5" value="3.5" aria-label="Outlier cutoff (robust z-score)">
+        <output id="outKOut">3.5</output>
+      </div>
+      <p class="hint">Hides points more than this many robust standard deviations (median ± MAD) from the middle of either axis. Lower = stricter.</p>
+    </fieldset>
+
+    <fieldset>
       <legend class="h">Export</legend>
       <div class="btnrow">
         <button type="button" class="btn" id="dlcsv">.csv</button>
@@ -228,9 +253,10 @@
     <div class="chartwrap">
       <div class="loading" id="loading">Loading 2DMatPedia data…</div>
       <div id="plot"></div>
+      <div class="card" id="card" hidden></div>
     </div>
     <footer>
-      Data: J. Zhou et al., <a href="https://doi.org/10.1038/s41597-019-0097-3" target="_blank" rel="noopener">Sci. Data 6, 86 (2019)</a>. DFT (PBE) values; band gaps are underestimated relative to experiment. Click a point to open its 2DMatPedia page.
+      Data: J. Zhou et al., <a href="https://doi.org/10.1038/s41597-019-0097-3" target="_blank" rel="noopener">Sci. Data 6, 86 (2019)</a>. DFT (PBE) values; band gaps are underestimated relative to experiment. Click a point for its details.
     </footer>
   </main>
 </div>
@@ -327,7 +353,11 @@
   });
   document.querySelectorAll("#blobmode button").forEach(b => b.onclick = () => { state.blob = b.dataset.mode; render(false); });
   $("cover").oninput = e => { state.cover = +e.target.value; $("coverOut").textContent = state.cover + "%"; render(false); };
-  ["fTop", "fBot", "fMetal", "fExf", "fHull"].forEach(id => $(id).onchange = () => render(true));
+  ["fTop", "fBot", "fMetal", "fExf", "fHull", "fOut"].forEach(id => $(id).onchange = () => render(true));
+  if (params.get("out") === "1") $("fOut").checked = true;
+  if (params.has("k")) { $("outK").value = params.get("k"); $("outKOut").textContent = params.get("k"); }
+  $("outK").disabled = !$("fOut").checked;
+  $("outK").oninput = e => { $("outKOut").textContent = e.target.value; if ($("fOut").checked) render(true); };
   let searchTimer;
   $("search").oninput = e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.search = e.target.value.trim(); render(false); }, 150); };
   $("allon").onclick = () => { state.hidden.clear(); render(false); };
@@ -381,7 +411,34 @@
       if ((state.xlog && x <= 0) || (state.ylog && y <= 0)) { dropLog++; continue; }
       rows.push(i);
     }
-    return { rows, dropMissing, dropLog, dropZero };
+    let dropOut = 0, kept = rows;
+    $("outK").disabled = !$("fOut").checked;
+    if ($("fOut").checked && rows.length > 10) {
+      const k = +$("outK").value;
+      const tx = rows.map(i => state.xlog ? Math.log10(xs[i]) : xs[i]);
+      const ty = rows.map(i => state.ylog ? Math.log10(ys[i]) : ys[i]);
+      const zx = robustZ(tx), zy = robustZ(ty);
+      kept = rows.filter((_, n) => Math.abs(zx[n]) <= k && Math.abs(zy[n]) <= k);
+      dropOut = rows.length - kept.length;
+    }
+    return { rows: kept, dropMissing, dropLog, dropZero, dropOut };
+  }
+
+  // Modified z-score (Iglewicz & Hoaglin): z = 0.6745·(v − median) / MAD.
+  // If MAD = 0 (over half the values identical) fall back to the mean absolute
+  // deviation: z = (v − median) / (1.2533·MeanAD). If both are 0, nothing is flagged.
+  function median(sorted) {
+    const n = sorted.length, m = n >> 1;
+    return n % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+  }
+  function robustZ(vals) {
+    const med = median(vals.slice().sort((a, b) => a - b));
+    const dev = vals.map(v => Math.abs(v - med));
+    const mad = median(dev.slice().sort((a, b) => a - b));
+    if (mad > 0) return vals.map(v => 0.6745 * (v - med) / mad);
+    const meanAD = dev.reduce((a, b) => a + b, 0) / dev.length;
+    if (meanAD > 0) return vals.map(v => (v - med) / (1.2533 * meanAD));
+    return vals.map(() => 0);
   }
 
   // ------------------------------------------------------------------ envelopes
@@ -438,7 +495,7 @@
     if (!D) return;
     syncButtons();
     const C = D.columns;
-    const { rows, dropMissing, dropLog, dropZero } = visibleRows();
+    const { rows, dropMissing, dropLog, dropZero, dropOut } = visibleRows();
 
     const counts = {};
     for (const i of rows) counts[C.group[i]] = (counts[C.group[i]] || 0) + 1;
@@ -558,6 +615,7 @@
 
     const shown = rows.filter(i => !state.hidden.has(C.group[i])).length;
     const notes = [];
+    if (dropOut) notes.push(`${dropOut.toLocaleString()} outliers hidden`);
     if (dropZero) notes.push(`${dropZero.toLocaleString()} with a value of 0 hidden`);
     if (dropLog) notes.push(`${dropLog.toLocaleString()} ≤ 0 hidden by log scale`);
     if (dropMissing) notes.push(`${dropMissing.toLocaleString()} missing a value`);
@@ -567,16 +625,48 @@
     const h = new URLSearchParams({ x: state.x, y: state.y, xlog: +state.xlog, ylog: +state.ylog, blob: state.blob, cover: state.cover });
     if (state.hidden.size) h.set("hide", [...state.hidden].join("|"));
     if (state.search) h.set("q", state.search);
+    if ($("fOut").checked) { h.set("out", 1); h.set("k", $("outK").value); }
     history.replaceState(null, "", "#" + h.toString());
     render.rows = rows;
   }
 
-  // click → material page
+  // click → details card
+  const CARD_PROPS = [
+    ["bandgap_eV", "Band gap", "eV"], ["exfoliation_energy_meV_A2", "Exfoliation energy", "meV/Å²"],
+    ["decomposition_energy_per_atom_eV", "Energy above hull", "eV/atom"], ["thickness_A", "Thickness", "Å"],
+    ["a_A", "a", "Å"], ["b_A", "b", "Å"], ["areal_mass_density_ug_cm2", "Areal mass density", "µg/cm²"],
+    ["magnetization_per_atom_muB", "Magnetization", "μB/atom"], ["n_atoms_cell", "Atoms / cell", ""],
+  ];
+  let idIndex = null;
+  function showCard(id) {
+    const C = D.columns;
+    idIndex ||= new Map(C.material_id.map((m, i) => [m, i]));
+    const i = idIndex.get(id); if (i == null) return;
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const rows = CARD_PROPS.filter(([k]) => C[k][i] != null)
+      .map(([k, lab, u]) => `<dt>${lab}</dt><dd>${fmt(C[k][i])}${u ? " " + u : ""}</dd>`).join("");
+    const links = [`<a href="http://www.2dmatpedia.org/2dmaterials/doc/${esc(id)}" target="_blank" rel="noopener">2DMatPedia entry ↗</a>`];
+    const src = C.source_id[i] || "", rel = C.relative_id ? C.relative_id[i] : "";
+    if (C.discovery_process[i] === "top-down" && src.startsWith("mp-"))
+      links.push(`<a href="https://next-gen.materialsproject.org/materials/${esc(src)}" target="_blank" rel="noopener">Bulk parent ${esc(src)} on Materials Project ↗</a>`);
+    if (C.discovery_process[i] === "bottom-up" && idIndex.has(rel))
+      links.push(`<a href="#" data-goto="${esc(rel)}">Substituted from ${subFormula(esc(C.formula[idIndex.get(rel)]))} (${esc(rel)})</a>`);
+    $("card").innerHTML = `<button class="x" aria-label="Close">×</button>
+      <h2>${subFormula(esc(C.formula[i]))}</h2>
+      <div class="meta">${esc(id)} · ${esc(C.spacegroup[i])} · ${esc(C.crystal_system[i])}<br>${esc(C.family[i])} · ${esc(C.discovery_process[i])}${C.is_metal[i] ? " · metallic" : ""}</div>
+      <dl>${rows}</dl>
+      <div class="links">${links.join("")}<div class="note">The 2DMatPedia server is old and some entries fail to load there; all values shown here are from its database.</div></div>`;
+    $("card").hidden = false;
+    $("card").querySelector(".x").onclick = () => { $("card").hidden = true; };
+    const g = $("card").querySelector("[data-goto]");
+    if (g) g.onclick = e => { e.preventDefault(); showCard(g.dataset.goto); };
+  }
   function wireClicks() {
     $("plot").on("plotly_click", ev => {
       const p = ev.points && ev.points[0];
-      if (p && p.customdata && p.customdata[1]) window.open(`http://www.2dmatpedia.org/2dmaterials/doc/${p.customdata[1]}`, "_blank", "noopener");
+      if (p && p.customdata && p.customdata[1]) showCard(p.customdata[1]);
     });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") $("card").hidden = true; });
   }
 
   // exports
